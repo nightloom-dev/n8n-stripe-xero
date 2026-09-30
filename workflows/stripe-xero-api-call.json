@@ -1,0 +1,629 @@
+{
+  "active": true,
+  "connections": {
+    "Minute budget low?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Pause Xero",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Response",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Pause Xero": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Response",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Request": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Route",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Skipped",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Xero GET",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Xero PUT",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Stripe GET",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Unsupported",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Status": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Rate limited",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Request failed",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Minute budget low?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Stripe GET": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Status",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero GET": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Status",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero PUT": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Status",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "xz3tsYZyYdlomKTa",
+  "name": "stripe-xero · api call",
+  "nodes": [
+    {
+      "id": "32a08825-ecd3-5abd-9960-99690b107c8f",
+      "name": "Request",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "175799d1-9b0d-55cb-995e-ba2e8c3b8af4",
+      "name": "Route",
+      "parameters": {
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "unsupported"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.skip === true }}",
+                    "operator": {
+                      "operation": "true",
+                      "singleValue": true,
+                      "type": "boolean"
+                    },
+                    "rightValue": ""
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "skip",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.service + ' ' + $json.method }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "xero GET"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "xero GET",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.service + ' ' + $json.method }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "xero PUT"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "xero PUT",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.service + ' ' + $json.method }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "stripe GET"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "stripe GET",
+              "renameOutput": true
+            }
+          ]
+        }
+      },
+      "position": [
+        220,
+        0
+      ],
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4
+    },
+    {
+      "id": "90bdee12-befe-5cb8-b512-05c5e2e5f457",
+      "name": "Skipped",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "skipped",
+              "type": "boolean",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "position": [
+        480,
+        -320
+      ],
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4
+    },
+    {
+      "credentials": {
+        "oAuth2Api": {
+          "name": "Xero"
+        }
+      },
+      "id": "ec56c852-b953-5900-9ca2-fe6dc63e0d76",
+      "name": "Xero GET",
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "method": "GET",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "url": "={{ $json.url }}"
+      },
+      "position": [
+        480,
+        -160
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "credentials": {
+        "oAuth2Api": {
+          "name": "Xero"
+        }
+      },
+      "id": "c3f8575f-5652-5461-ad00-8ff0aee41b4e",
+      "name": "Xero PUT",
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ ($json.method + ' ' + $json.url + ' ' + JSON.stringify($json.body)).hash('sha256') }}"
+            }
+          ]
+        },
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "method": "PUT",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "url": "={{ $json.url }}"
+      },
+      "position": [
+        480,
+        0
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "credentials": {
+        "stripeApi": {
+          "name": "Stripe"
+        }
+      },
+      "id": "ff1f1c10-36e3-5853-b11e-a08ae3c99953",
+      "name": "Stripe GET",
+      "parameters": {
+        "authentication": "predefinedCredentialType",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Stripe-Version",
+              "value": "2026-08-26.dahlia"
+            }
+          ]
+        },
+        "method": "GET",
+        "nodeCredentialType": "stripeApi",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchInterval": 1000,
+              "batchSize": 10
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "url": "={{ $json.url }}"
+      },
+      "position": [
+        480,
+        160
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "id": "f9414d23-3daa-54cb-99fe-bf5d88f352f8",
+      "name": "Unsupported",
+      "parameters": {
+        "errorMessage": "=Unsupported request: {{ JSON.stringify($json).slice(0, 300) }}"
+      },
+      "position": [
+        480,
+        320
+      ],
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1
+    },
+    {
+      "id": "3a28f670-9350-59e7-b4f8-0438378eed73",
+      "name": "Status",
+      "parameters": {
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "ok"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.statusCode }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "number"
+                    },
+                    "rightValue": 429
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "rate limited",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.statusCode }}",
+                    "operator": {
+                      "operation": "gte",
+                      "type": "number"
+                    },
+                    "rightValue": 400
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "failed",
+              "renameOutput": true
+            }
+          ]
+        }
+      },
+      "position": [
+        740,
+        0
+      ],
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4
+    },
+    {
+      "id": "b00c9304-a48c-513d-a74f-fcd9a52d29e6",
+      "name": "Rate limited",
+      "parameters": {
+        "errorMessage": "={{ $('Request').item.json.service === 'xero' ? 'XERO_RATE_LIMITED retry_after=' + ($json.headers['retry-after'] ?? 5) + ' (' + ($json.headers['x-rate-limit-problem'] ?? 'unknown') + ' limit)' : 'STRIPE_RATE_LIMITED ' + ($json.headers['stripe-rate-limited-reason'] ?? '') }}"
+      },
+      "position": [
+        1000,
+        -160
+      ],
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1
+    },
+    {
+      "id": "9b3991b3-943e-5dea-b278-b299eaa80ba0",
+      "name": "Request failed",
+      "parameters": {
+        "errorMessage": "={{ $('Request').item.json.service.toUpperCase() }}_HTTP {{ $json.statusCode }} {{ $('Request').item.json.method }} {{ $('Request').item.json.url.split('?')[0] }}: {{ (typeof $json.body === 'object' && $json.body !== null ? ($json.body.Message ?? $json.body.Detail ?? $json.body.error?.message ?? JSON.stringify($json.body)) : String($json.body)).slice(0, 400) }}"
+      },
+      "position": [
+        1000,
+        0
+      ],
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1
+    },
+    {
+      "id": "578d82b2-836f-5020-b92b-90557dcc67f6",
+      "name": "Minute budget low?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ Number($json.headers['x-minlimit-remaining'] ?? 60) }}",
+              "operator": {
+                "operation": "lt",
+                "type": "number"
+              },
+              "rightValue": 5
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        1000,
+        160
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "executeOnce": true,
+      "id": "9a251764-bf28-54e1-90d7-32ddb984d842",
+      "name": "Pause Xero",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ 'Xero minute budget low: ' + $json.headers['x-minlimit-remaining'] + ' calls left' ] }}"
+        },
+        "query": "SELECT pause_xero(60, $1)"
+      },
+      "position": [
+        1240,
+        80
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "f0a9d3c8-f622-5191-8052-53d0deafec8e",
+      "name": "Response",
+      "parameters": {
+        "jsCode": "// what the caller gets: one item per request, same order, with the parsed response body\nconst sent = ['Xero GET', 'Xero PUT', 'Stripe GET'].find(name => $(name).isExecuted);\nreturn $(sent).all().map(({ json }) => ({\n  json: json.body !== null && typeof json.body === 'object' ? json.body : { text: String(json.body ?? '') },\n}));\n"
+      },
+      "position": [
+        1480,
+        160
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a59c3b4c-5dda-5c53-99bb-73d16ecf1905",
+      "name": "About",
+      "parameters": {
+        "content": "## Every outbound request goes through here\nInput: one item per request, `{service: xero|stripe, method, url, body?}`, or a single `{skip: true}` when the\ncaller has nothing to send (the chain keeps going). Output: the response bodies, in request order.\n\n**Xero:** OAuth2 client credentials (n8n refreshes the token), `Idempotency-Key` = sha256 of the request.\nA 429 fails the call with `XERO_RATE_LIMITED retry_after=N`: the processor pauses all Xero work for N seconds\nwithout counting an attempt. Under 5 calls left in the minute pauses the next batch for 60 s before Xero says no.\n**Stripe:** pinned API version, 10 requests a second.\nAny other 4xx/5xx fails the call; the processor retries the batch with backoff.",
+        "height": 280,
+        "width": 640
+      },
+      "position": [
+        -40,
+        -560
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    }
+  ],
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    "stripe-xero"
+  ]
+}

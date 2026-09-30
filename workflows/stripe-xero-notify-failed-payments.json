@@ -1,0 +1,112 @@
+{
+  "active": true,
+  "connections": {
+    "Events": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Message",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Message": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Send alert",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Send alert": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Results",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "apPmtiHNw3I2ww5D",
+  "name": "stripe-xero · notify failed payments",
+  "nodes": [
+    {
+      "id": "4ccf838c-4f7a-5a69-bd0e-a8907f67f6aa",
+      "name": "Events",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "fcc45081-1489-5278-8bbc-59d909790467",
+      "name": "Message",
+      "parameters": {
+        "jsCode": "const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];\nconst THREE_DECIMAL = ['BHD', 'JOD', 'KWD', 'OMR', 'TND'];\nconst unitOf = currency => ZERO_DECIMAL.includes(currency) ? 1 : THREE_DECIMAL.includes(currency) ? 1000 : 100;\nconst day = ts => new Date(ts * 1000).toISOString().slice(0, 10);\n\n// one message per batch: who didn't pay, how much, when Stripe tries again. nothing goes to Xero\nconst lines = $('Events').all().map(({ json: ev }) => {\n  const inv = ev.payload.data.object;\n  const currency = String(inv.currency).toUpperCase();\n  const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(inv.amount_due / unitOf(currency));\n  const who = [inv.customer_name, inv.customer_email].filter(Boolean).join(' ') || inv.customer;\n  const next = inv.next_payment_attempt ? `next try ${day(inv.next_payment_attempt)}` : 'no retry scheduled';\n  return `• ${who}: ${amount}, attempt ${inv.attempt_count}, ${next}\\n  ${inv.hosted_invoice_url ?? inv.id}`;\n});\nconst shown = lines.slice(0, 20);\nif (lines.length > shown.length) shown.push(`…and ${lines.length - shown.length} more`);\nreturn [{ json: { text: `Stripe: ${lines.length} failed payment${lines.length === 1 ? '' : 's'}\\n${shown.join('\\n')}` } }];\n"
+      },
+      "position": [
+        220,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "bfbbae16-a793-519e-b5a1-862e54f872ac",
+      "name": "Send alert",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · alert",
+          "mode": "list",
+          "value": "7G5eBIilymEwlcg3"
+        }
+      },
+      "position": [
+        440,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "39634c04-6a8d-55ea-a860-dc49d286ea1a",
+      "name": "Results",
+      "parameters": {
+        "jsCode": "return $('Events').all().map(({ json }) => ({ json: { event_id: json.id, error: null } }));\n"
+      },
+      "position": [
+        660,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    }
+  ],
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    "stripe-xero"
+  ]
+}

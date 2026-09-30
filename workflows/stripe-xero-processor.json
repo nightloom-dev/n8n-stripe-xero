@@ -1,0 +1,778 @@
+{
+  "active": true,
+  "connections": {
+    "Alert": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Next batch?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Any dead?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Describe dead events",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Next batch?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Batch failed": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Finish batch",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "By type": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Sync paid invoices",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Sync refunds",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Notify failed payments",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "No handler",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Claim batch": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Got events?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Finish batch",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Claim batch",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Describe dead events": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Alert",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Every 30 seconds": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Config",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Finish batch": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Any dead?",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Got events?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "By type",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Release lease",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Next batch?": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Claim batch",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Release lease",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "No handler": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Finish batch",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Notify failed payments": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Collect results",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Batch failed",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Sync paid invoices": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Collect results",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Batch failed",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Sync refunds": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Collect results",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "Batch failed",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "ocNrMnHFCmstX7E1",
+  "name": "stripe-xero · processor",
+  "nodes": [
+    {
+      "id": "f21cc922-ef05-52b7-8f96-118438c324c8",
+      "name": "Every 30 seconds",
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "id": "3eeb2314-9ef8-5650-b519-ef9a74a245c3",
+      "name": "Config",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "batch_size",
+              "type": "number",
+              "value": 40
+            },
+            {
+              "id": "a2",
+              "name": "max_batches",
+              "type": "number",
+              "value": 10
+            },
+            {
+              "id": "a3",
+              "name": "lease_ttl",
+              "type": "string",
+              "value": "5 minutes"
+            },
+            {
+              "id": "a4",
+              "name": "max_attempts",
+              "type": "number",
+              "value": 8
+            }
+          ]
+        },
+        "options": {}
+      },
+      "position": [
+        220,
+        0
+      ],
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4
+    },
+    {
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "id": "0dd5b2df-e2fe-5682-af6d-b7c4403aa858",
+      "name": "Claim batch",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $execution.id, $('Config').first().json.batch_size, $('Config').first().json.lease_ttl ] }}"
+        },
+        "query": "SELECT * FROM claim_batch($1, $2, $3::interval)"
+      },
+      "position": [
+        440,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "15119f94-d5a3-5495-968b-2c990ad5f1d7",
+      "name": "Got events?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.id }}",
+              "operator": {
+                "operation": "exists",
+                "singleValue": true,
+                "type": "string"
+              },
+              "rightValue": ""
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        660,
+        0
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3
+    },
+    {
+      "id": "2076f22c-70d4-5cca-a16c-202bd8afc593",
+      "name": "By type",
+      "parameters": {
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "no handler"
+        },
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "invoice.paid"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "invoice.paid",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "refund.created"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "refund.created",
+              "renameOutput": true
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "c",
+                    "leftValue": "={{ $json.type }}",
+                    "operator": {
+                      "operation": "equals",
+                      "type": "string"
+                    },
+                    "rightValue": "invoice.payment_failed"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                }
+              },
+              "outputKey": "invoice.payment_failed",
+              "renameOutput": true
+            }
+          ]
+        }
+      },
+      "position": [
+        880,
+        -100
+      ],
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4
+    },
+    {
+      "id": "38b01515-69b7-5985-9d99-114868b171a9",
+      "name": "Sync paid invoices",
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · sync paid invoices",
+          "mode": "list",
+          "value": "QN1yCSabCyikSgec"
+        }
+      },
+      "position": [
+        1140,
+        -340
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "a140a966-3bc3-5149-bb0c-1c18ef4626e6",
+      "name": "Sync refunds",
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · sync refunds",
+          "mode": "list",
+          "value": "Ya1TL22yultNMurl"
+        }
+      },
+      "position": [
+        1140,
+        -180
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "5ac65783-d838-5f7e-a132-6c278de3276e",
+      "name": "Notify failed payments",
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · notify failed payments",
+          "mode": "list",
+          "value": "apPmtiHNw3I2ww5D"
+        }
+      },
+      "position": [
+        1140,
+        -20
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "executeOnce": true,
+      "id": "00c0585f-2406-51f7-9c32-9c41a4f2ed45",
+      "name": "No handler",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "batch_error",
+              "type": "string",
+              "value": "=PERMANENT: no handler for event type {{ $json.type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "position": [
+        1140,
+        160
+      ],
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4
+    },
+    {
+      "id": "01d7743b-5204-5e50-8989-bd4825f5d2e8",
+      "name": "Collect results",
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results"
+      },
+      "position": [
+        1400,
+        -260
+      ],
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1
+    },
+    {
+      "executeOnce": true,
+      "id": "f3398e19-e8db-5f40-9851-69f562fb680b",
+      "name": "Batch failed",
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "batch_error",
+              "type": "string",
+              "value": "={{ $json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "position": [
+        1400,
+        -60
+      ],
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "id": "51e5db3f-c732-5c2b-8a19-4c3dc7508a9e",
+      "name": "Finish batch",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $('Claim batch').all().map(({ json }) => json.id), JSON.stringify($json.results ?? []), $json.batch_error ?? null, $('Config').first().json.max_attempts ] }}"
+        },
+        "query": "SELECT * FROM finish_batch($1::text[], $2::jsonb, $3, $4)"
+      },
+      "position": [
+        1640,
+        -100
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "b4d11dd5-4cd2-5827-beeb-f9a5ce4d40de",
+      "name": "Any dead?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.dead.length }}",
+              "operator": {
+                "operation": "gt",
+                "type": "number"
+              },
+              "rightValue": 0
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        1860,
+        -100
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "id": "0ee3799b-e3ee-514a-8a0a-9f7f25fecdc0",
+      "name": "Describe dead events",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $json.dead ] }}"
+        },
+        "query": "SELECT format('%s Stripe events gave up and need a look:', count(*)) || E'\\n' ||\n       string_agg(format('• %s %s, %s attempts: %s', type, object_id, attempts, left(last_error, 300)), E'\\n'\n                  ORDER BY received_at) AS text\n  FROM stripe_event\n WHERE id = ANY ($1::text[])"
+      },
+      "position": [
+        2080,
+        -200
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "d6f414e2-955d-526e-b253-324ba095766f",
+      "name": "Alert",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · alert",
+          "mode": "list",
+          "value": "7G5eBIilymEwlcg3"
+        }
+      },
+      "position": [
+        2300,
+        -200
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "714e2e6e-914d-5309-bfe4-d6ebc1b456ed",
+      "name": "Next batch?",
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $runIndex + 1 }}",
+              "operator": {
+                "operation": "lt",
+                "type": "number"
+              },
+              "rightValue": "={{ $('Config').first().json.max_batches }}"
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Finish batch').first().json.paused_for_s }}",
+              "operator": {
+                "operation": "equals",
+                "type": "number"
+              },
+              "rightValue": 0
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          }
+        },
+        "options": {}
+      },
+      "position": [
+        2520,
+        -100
+      ],
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "executeOnce": true,
+      "id": "19923284-5c99-582b-bfbb-aae886b938f9",
+      "name": "Release lease",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $execution.id ] }}"
+        },
+        "query": "SELECT release_lease($1)"
+      },
+      "position": [
+        2740,
+        100
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "26040c14-135f-5a8a-beac-db776b9ffb6b",
+      "name": "About",
+      "parameters": {
+        "content": "## Processor: drains the event queue in batches\nEvery 30 s, at most `max_batches` batches of up to `batch_size` events of one type.\n\n`claim_batch()` takes the lease (one run at a time), then locks the oldest due events of one type. It returns\nnothing when another run holds the lease, the queue is empty, or Xero is paused, and each of those ends the run.\n\nA handler returns `{event_id, error}` per event. `finish_batch()` marks each done, retrying (backoff 30 s ... 1 h),\nor dead (after `max_attempts`, or at once for `PERMANENT:` errors). A handler failing as a whole fails every event\nin the batch; `XERO_RATE_LIMITED retry_after=N` instead pauses Xero work for N s without counting an attempt.\nDead events are announced on Telegram. If a run dies midway, its lease and locks expire after `lease_ttl`.",
+        "height": 300,
+        "width": 760
+      },
+      "position": [
+        380,
+        -600
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    }
+  ],
+  "settings": {
+    "errorWorkflow": "7G5eBIilymEwlcg3",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    "stripe-xero"
+  ]
+}

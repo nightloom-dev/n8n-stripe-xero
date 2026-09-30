@@ -1,0 +1,5 @@
+__pycache__/
+# made by tools/fixtures.py generate
+fixtures/
+# n8nctl state, what was last pushed to each instance
+.n8nctl/

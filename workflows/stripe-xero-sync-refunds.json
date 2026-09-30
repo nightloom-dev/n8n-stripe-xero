@@ -1,0 +1,447 @@
+{
+  "active": true,
+  "connections": {
+    "Credit notes to create": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: create credit notes",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Credit notes to look up": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: find credit notes",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Events": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Load context",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Invoice links": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Credit notes to look up",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Invoice payments to look up": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Stripe: find invoices",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Load context": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Outcome": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Save links",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Invoice payments to look up",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Refunds to record": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: record refunds",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Save links": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Results",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Stripe: find invoices": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Invoice links",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: create credit notes": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Refunds to record",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: find credit notes": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Credit notes to create",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: record refunds": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Outcome",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "Ya1TL22yultNMurl",
+  "name": "stripe-xero · sync refunds",
+  "nodes": [
+    {
+      "id": "524d00e3-cf3b-5439-877b-cf7e8dbc84e3",
+      "name": "Events",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "executeOnce": true,
+      "id": "f46f7e92-4961-5eca-8005-b19ac5fa58f9",
+      "name": "Load context",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $('Events').all().flatMap(({ json }) => [json.object_id, json.payload.data.object.customer]).filter(Boolean) ] }}"
+        },
+        "query": "SELECT batch_context($1::text[]) AS ctx"
+      },
+      "position": [
+        220,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "f3f911fd-cb8a-5b3d-93b0-8cc390fc6587",
+      "name": "Plan",
+      "parameters": {
+        "jsCode": "const STRIPE_VERSION = '2026-08-26.dahlia';\nconst wrongVersion = ev => ev.payload.api_version !== STRIPE_VERSION &&\n  `PERMANENT: event is in Stripe API version ${ev.payload.api_version}; pin the webhook endpoint to ${STRIPE_VERSION}`;\n\n// refunds already in Xero, failed or cancelled ones and foreign currencies are settled here. the rest need\n// their invoice: a refund points at a PaymentIntent, Stripe's invoice_payments maps that to the invoice\nconst { settings: s, links } = $('Load context').first().json.ctx;\nconst outcomes = [], refunds = [];\nfor (const { json: ev } of $('Events').all()) {\n  const re = ev.payload.data.object;\n  const currency = String(re.currency).toUpperCase();\n  const settle = outcome => outcomes.push({ event_id: ev.id, ...outcome });\n  if (links[re.id]?.refund) settle({ note: 'already in Xero' });\n  else if (wrongVersion(ev)) settle({ error: wrongVersion(ev) });\n  else if (!['succeeded', 'pending'].includes(re.status)) settle({ note: `refund is ${re.status}, nothing to post` });\n  else if (currency !== s.xero_currency) settle({ error: `PERMANENT: currency ${currency} is not the Xero organisation's ${s.xero_currency}` });\n  else if (!re.payment_intent) settle({ note: 'refund has no PaymentIntent, so no invoice to credit' });\n  else refunds.push({ event_id: ev.id, refund: re });\n}\nreturn [{ json: { plan: { settings: s, links, outcomes, refunds } } }];\n"
+      },
+      "position": [
+        440,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "7f4a596c-7459-5797-a17b-c2ec303a3197",
+      "name": "Invoice payments to look up",
+      "parameters": {
+        "jsCode": "const { plan } = $('Plan').first().json;\nconst lookups = plan.refunds.map(({ refund }) => ({ json: {\n  service: 'stripe', method: 'GET',\n  url: `${plan.settings.stripe_api_base}/v1/invoice_payments?payment%5Btype%5D=payment_intent&payment%5Bpayment_intent%5D=${refund.payment_intent}&limit=1`,\n} }));\nreturn lookups.length ? lookups : [{ json: { skip: true } }];\n"
+      },
+      "position": [
+        660,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "ab5781db-2e6b-5e52-a928-4e6996687fc6",
+      "name": "Stripe: find invoices",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        880,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "executeOnce": true,
+      "id": "cc09f5b8-e913-5d98-8d44-1ec53188ae6f",
+      "name": "Invoice links",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $('Stripe: find invoices').all().map(({ json }) => json.data?.[0]?.invoice).filter(Boolean) ] }}"
+        },
+        "query": "SELECT batch_context($1::text[]) AS ctx"
+      },
+      "position": [
+        1100,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "a90fd700-929a-5566-b1ca-876596c8a533",
+      "name": "Credit notes to look up",
+      "parameters": {
+        "jsCode": "// a refund is credited only once its invoice is in Xero. until then it waits without spending attempts (up to\n// 2 days, see finish_event). so a refund that came before its invoice.paid, or whose invoice.paid webhook got lost\n// and comes back with the nightly reconcile, still lands after it\nconst { plan } = $('Plan').first().json;\nconst invoiceLinks = $('Invoice links').first().json.ctx.links;\nconst answers = $('Stripe: find invoices').all();\nconst ready = [], outcomes = [];\nplan.refunds.forEach(({ event_id, refund }, i) => {\n  const invoice = answers[i]?.json.data?.[0]?.invoice;\n  const contact = plan.links[refund.customer]?.contact;\n  if (!invoice) outcomes.push({ event_id, note: 'not an invoice payment, nothing to credit' });\n  else if (!invoiceLinks[invoice]?.invoice || !contact) outcomes.push({ event_id, error: `WAITING: invoice ${invoice} is not in Xero yet` });\n  else ready.push({ event_id, refund, invoice, contact });\n});\nconst where = ready.map(r => `Reference==\"${r.refund.id}\"`).join(' OR ');\nreturn [{ json: {\n  ...(ready.length ? { service: 'xero', method: 'GET', url: `${plan.settings.xero_api_base}/CreditNotes?where=${encodeURIComponent(where)}` } : { skip: true }),\n  ready, outcomes,\n} }];\n"
+      },
+      "position": [
+        1320,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "3555ee65-c7b0-58fd-9fa1-42413b977056",
+      "name": "Xero: find credit notes",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        1540,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "b09d5b18-5782-576a-a7c3-2e2e70e65fad",
+      "name": "Credit notes to create",
+      "parameters": {
+        "jsCode": "const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];\nconst THREE_DECIMAL = ['BHD', 'JOD', 'KWD', 'OMR', 'TND'];\nconst unitOf = currency => ZERO_DECIMAL.includes(currency) ? 1 : THREE_DECIMAL.includes(currency) ? 1000 : 100;\nconst day = ts => new Date(ts * 1000).toISOString().slice(0, 10);\n// credit notes found or created, by Reference (the Stripe refund id)\nconst creditNotes = () => {\n  const byRef = {};\n  for (const node of ['Xero: find credit notes', 'Xero: create credit notes']) {\n    if (!$(node).isExecuted) continue;\n    for (const c of $(node).first().json.CreditNotes ?? []) if (c.StatusAttributeString !== 'ERROR') byRef[c.Reference] = c;\n  }\n  return byRef;\n};\n\nconst { plan } = $('Plan').first().json;\nconst { ready } = $('Credit notes to look up').first().json;\nconst s = plan.settings, unit = unitOf(s.xero_currency), found = creditNotes();\nconst create = ready.filter(r => !found[r.refund.id]).map(({ refund, invoice, contact }) => ({\n  Type: 'ACCRECCREDIT', Contact: { ContactID: contact }, Reference: refund.id, Status: 'AUTHORISED',\n  CurrencyCode: s.xero_currency, Date: day(refund.created), LineAmountTypes: 'NoTax',\n  LineItems: [{ Description: `Refund ${refund.id} of Stripe invoice ${invoice}`, Quantity: 1, UnitAmount: refund.amount / unit, AccountCode: s.xero_sales_account }],\n}));\nreturn [{ json: create.length\n  ? { service: 'xero', method: 'PUT', url: `${s.xero_api_base}/CreditNotes?summarizeErrors=false`, body: { CreditNotes: create } }\n  : { skip: true } }];\n"
+      },
+      "position": [
+        1760,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "4673f87a-003f-527c-bc45-157d2ac78573",
+      "name": "Xero: create credit notes",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        1980,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "f51e38d8-1a40-5382-b65a-a0bc4afdcba2",
+      "name": "Refunds to record",
+      "parameters": {
+        "jsCode": "const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];\nconst THREE_DECIMAL = ['BHD', 'JOD', 'KWD', 'OMR', 'TND'];\nconst unitOf = currency => ZERO_DECIMAL.includes(currency) ? 1 : THREE_DECIMAL.includes(currency) ? 1000 : 100;\nconst day = ts => new Date(ts * 1000).toISOString().slice(0, 10);\n// credit notes found or created, by Reference (the Stripe refund id)\nconst creditNotes = () => {\n  const byRef = {};\n  for (const node of ['Xero: find credit notes', 'Xero: create credit notes']) {\n    if (!$(node).isExecuted) continue;\n    for (const c of $(node).first().json.CreditNotes ?? []) if (c.StatusAttributeString !== 'ERROR') byRef[c.Reference] = c;\n  }\n  return byRef;\n};\n\n// pay each credit note out of the bank account, that's the money going back to the customer\nconst { plan } = $('Plan').first().json;\nconst { ready } = $('Credit notes to look up').first().json;\nconst s = plan.settings, unit = unitOf(s.xero_currency), notes = creditNotes();\nconst pay = [];\nfor (const { refund } of ready) {\n  const cn = notes[refund.id];\n  if (cn && cn.Status === 'AUTHORISED' && Math.abs(cn.RemainingCredit - refund.amount / unit) < 0.0005) {\n    pay.push({ CreditNote: { CreditNoteID: cn.CreditNoteID }, Account: { Code: s.xero_bank_account },\n               Amount: refund.amount / unit, Date: day(refund.created), Reference: refund.id });\n  }\n}\nreturn [{ json: pay.length\n  ? { service: 'xero', method: 'PUT', url: `${s.xero_api_base}/Payments?summarizeErrors=false`, body: { Payments: pay } }\n  : { skip: true } }];\n"
+      },
+      "position": [
+        2200,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "7acd5aad-61af-54c6-99d7-086c813c63be",
+      "name": "Xero: record refunds",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        2420,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "f61cbf51-82b2-5bc4-9cd9-1ef160fa9684",
+      "name": "Outcome",
+      "parameters": {
+        "jsCode": "const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];\nconst THREE_DECIMAL = ['BHD', 'JOD', 'KWD', 'OMR', 'TND'];\nconst unitOf = currency => ZERO_DECIMAL.includes(currency) ? 1 : THREE_DECIMAL.includes(currency) ? 1000 : 100;\nconst day = ts => new Date(ts * 1000).toISOString().slice(0, 10);\nconst problems = el => (el.ValidationErrors ?? []).map(e => e.Message).join('; ') || 'rejected by Xero';\nconst ok = el => el.StatusAttributeString !== 'ERROR';\n// credit notes found or created, by Reference (the Stripe refund id)\nconst creditNotes = () => {\n  const byRef = {};\n  for (const node of ['Xero: find credit notes', 'Xero: create credit notes']) {\n    if (!$(node).isExecuted) continue;\n    for (const c of $(node).first().json.CreditNotes ?? []) if (c.StatusAttributeString !== 'ERROR') byRef[c.Reference] = c;\n  }\n  return byRef;\n};\n\nconst { plan } = $('Plan').first().json;\nconst lookedUp = $('Credit notes to look up').first().json;\nconst unit = unitOf(plan.settings.xero_currency), notes = creditNotes();\nconst failedNote = {}, failedRefund = {}, refunded = {};\nfor (const c of $('Xero: create credit notes').first().json.CreditNotes ?? []) if (!ok(c)) failedNote[c.Reference] = problems(c);\nfor (const p of $('Xero: record refunds').first().json.Payments ?? []) {\n  if (ok(p)) refunded[p.CreditNote.CreditNoteID] = p; else failedRefund[p.CreditNote.CreditNoteID] = problems(p);\n}\nconst results = [...plan.outcomes, ...lookedUp.outcomes], links = [];\nfor (const { event_id, refund } of lookedUp.ready) {\n  const cn = notes[refund.id];\n  let error = null;\n  if (!cn) error = `Xero credit note: ${failedNote[refund.id] ?? 'not found and not created'}`;\n  else if (refunded[cn.CreditNoteID] || cn.RemainingCredit === 0) {\n    links.push({ stripe_id: refund.id, kind: 'credit_note', xero_id: cn.CreditNoteID, amount: cn.Total });\n    const paymentId = refunded[cn.CreditNoteID]?.PaymentID ?? cn.Payments?.[0]?.PaymentID;\n    if (paymentId) links.push({ stripe_id: refund.id, kind: 'refund', xero_id: paymentId, amount: refund.amount / unit });\n  } else if (failedRefund[cn.CreditNoteID]) error = `Xero refund: ${failedRefund[cn.CreditNoteID]}`;\n  else error = `PERMANENT: Xero credit note ${cn.CreditNoteNumber} is ${cn.Status} with ${cn.RemainingCredit} left, Stripe refunded ${refund.amount / unit}`;\n  results.push({ event_id, error });\n}\nreturn [{ json: { links, results } }];\n"
+      },
+      "position": [
+        2640,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "id": "b4318d32-4873-5e65-8a66-f5347d5ba2ca",
+      "name": "Save links",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.links) ] }}"
+        },
+        "query": "SELECT save_links($1::jsonb) AS saved"
+      },
+      "position": [
+        2860,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "8dd7f884-e9db-59bf-9d69-c2a685e176c1",
+      "name": "Results",
+      "parameters": {
+        "jsCode": "return $('Outcome').first().json.results.map(r => ({ json: r }));\n"
+      },
+      "position": [
+        3080,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "db527d90-0c4d-5461-8009-dbcae0b59b9d",
+      "name": "About",
+      "parameters": {
+        "content": "## refund.created -> Xero credit note, paid out of the bank account\nThe Xero invoice is already paid, so the refund cannot be allocated to it: it becomes an AUTHORISED\nACCRECCREDIT credit note plus a cash refund payment (ARCREDITPAYMENT) from the same bank account.\nEach partial refund is its own credit note. A refund waits until its invoice is in Xero.\nStripe: one `invoice_payments` lookup per refund. Xero: at most 4 calls per batch.",
+        "height": 220,
+        "width": 720
+      },
+      "position": [
+        180,
+        -380
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    }
+  ],
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    "stripe-xero"
+  ]
+}

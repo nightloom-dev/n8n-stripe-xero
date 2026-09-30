@@ -1,0 +1,145 @@
+{
+  "active": true,
+  "connections": {
+    "Alert": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Recipient",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Describe failure": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Recipient",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Recipient": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Telegram",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Workflow failed": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Describe failure",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "7G5eBIilymEwlcg3",
+  "name": "stripe-xero · alert",
+  "nodes": [
+    {
+      "id": "57ca2fb0-04a0-5ead-96f9-a9310984f3bd",
+      "name": "Alert",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "id": "815b7faf-10bc-57c4-bc31-f13acbde9411",
+      "name": "Workflow failed",
+      "parameters": {},
+      "position": [
+        0,
+        200
+      ],
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1
+    },
+    {
+      "id": "1adc1343-e15b-5925-a647-87be783c6bf1",
+      "name": "Describe failure",
+      "parameters": {
+        "jsCode": "// error workflow for intake and the processor, says what broke and where to look\nconst { execution, workflow } = $json;\nconst text = [`${workflow.name} failed`, `${execution.lastNodeExecuted ?? '?'}: ${execution.error?.message ?? 'unknown error'}`, execution.url].filter(Boolean).join('\\n');\nreturn [{ json: { text } }];\n"
+      },
+      "position": [
+        220,
+        200
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "id": "865075bf-b89b-583d-9efe-781096c9eefd",
+      "name": "Recipient",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $json.text ] }}"
+        },
+        "query": "SELECT left($1, 4000) AS text, (SELECT value FROM app_setting WHERE name = 'alert_chat_id') AS chat_id"
+      },
+      "position": [
+        440,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "credentials": {
+        "telegramApi": {
+          "name": "Alerts bot"
+        }
+      },
+      "id": "abec91ae-bd33-5b66-a1b9-7058790c60c5",
+      "name": "Telegram",
+      "parameters": {
+        "additionalFields": {
+          "appendAttribution": false,
+          "disable_web_page_preview": true
+        },
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}"
+      },
+      "position": [
+        660,
+        0
+      ],
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "webhookId": "2f559ac3-2197-586d-a3b2-017122ab77ec"
+    }
+  ],
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    "stripe-xero"
+  ]
+}

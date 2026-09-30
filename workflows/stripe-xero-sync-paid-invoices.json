@@ -1,0 +1,446 @@
+{
+  "active": true,
+  "connections": {
+    "Contacts to create": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: create contacts",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Events": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Load context",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Invoices to create": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: create invoices",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Invoices to look up": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: find invoices",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Load context": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Plan",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Outcome": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Save links",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Payments to record": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: record payments",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Plan": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Xero: find contacts",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Save links": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Results",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: create contacts": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Invoices to look up",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: create invoices": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Payments to record",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: find contacts": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Contacts to create",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: find invoices": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Invoices to create",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Xero: record payments": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Outcome",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "id": "QN1yCSabCyikSgec",
+  "name": "stripe-xero · sync paid invoices",
+  "nodes": [
+    {
+      "id": "8b1b5d9e-bbe2-5b58-a473-b05fb7e3bf4f",
+      "name": "Events",
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "position": [
+        0,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "executeOnce": true,
+      "id": "561b77a2-62b0-5381-a27a-73c892f86551",
+      "name": "Load context",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ $('Events').all().flatMap(({ json }) => [json.object_id, json.payload.data.object.customer]).filter(Boolean) ] }}"
+        },
+        "query": "SELECT batch_context($1::text[]) AS ctx"
+      },
+      "position": [
+        220,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "5e129092-c960-5984-ac59-39047dcb4303",
+      "name": "Plan",
+      "parameters": {
+        "jsCode": "const ZERO_DECIMAL = ['BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'];\nconst THREE_DECIMAL = ['BHD', 'JOD', 'KWD', 'OMR', 'TND'];\nconst unitOf = currency => ZERO_DECIMAL.includes(currency) ? 1 : THREE_DECIMAL.includes(currency) ? 1000 : 100;\nconst day = ts => new Date(ts * 1000).toISOString().slice(0, 10);\nconst STRIPE_VERSION = '2026-08-26.dahlia';\nconst wrongVersion = ev => ev.payload.api_version !== STRIPE_VERSION &&\n  `PERMANENT: event is in Stripe API version ${ev.payload.api_version}; pin the webhook endpoint to ${STRIPE_VERSION}`;\n\n// map each paid Stripe invoice to Xero documents. events that can't or needn't be posted get their outcome\n// here, the rest go contacts -> invoices -> payments, each step checks Xero before creating anything\nconst { settings: s, links } = $('Load context').first().json.ctx;\nconst cur = s.xero_currency;\nconst unit = unitOf(cur);\nconst sum = xs => xs.reduce((a, b) => a + b, 0);\nconst outcomes = [];   // {event_id, error | note}, decided without Xero\nconst invoices = {};   // Stripe invoice id -> Xero invoice and payment to post, and the events asking for it\nconst customers = {};  // Stripe customer id -> Xero contact to find or create\n\nfor (const { json: ev } of $('Events').all()) {\n  const inv = ev.payload.data.object;\n  const currency = String(inv.currency).toUpperCase();\n  const settle = outcome => outcomes.push({ event_id: ev.id, ...outcome });\n  if (invoices[inv.id]) { invoices[inv.id].events.push(ev.id); continue; }  // two events for one invoice\n  if (links[inv.id]?.payment) { settle({ note: 'already in Xero' }); continue; }\n  if (wrongVersion(ev)) { settle({ error: wrongVersion(ev) }); continue; }\n  if (inv.total === 0) { settle({ note: 'zero-amount invoice, nothing to post' }); continue; }\n  if (currency !== cur) { settle({ error: `PERMANENT: currency ${currency} is not the Xero organisation's ${cur}` }); continue; }\n  if ((inv.total_taxes ?? []).some(t => t.amount)) { settle({ error: 'PERMANENT: invoice has tax; posting it without tax would misstate it' }); continue; }\n  if (inv.amount_paid !== inv.total) { settle({ error: `PERMANENT: paid partly from customer balance or credit (${inv.amount_paid} of ${inv.total})` }); continue; }\n\n  // line detail if the event has every line and they add up, otherwise one line with the exact total\n  const lines = (inv.lines?.data ?? []).map(l => ({\n    description: l.description || 'Stripe line item',\n    net: l.amount - sum((l.discount_amounts ?? []).map(d => d.amount)),\n  }));\n  const exact = !inv.lines?.has_more && lines.length > 0 && sum(lines.map(l => l.net)) === inv.total;\n  const posted = exact ? lines : [{ description: `Stripe invoice ${inv.number}`, net: inv.total }];\n\n  // contact names carry the customer id, so two John Smiths in Stripe stay two contacts in Xero\n  const base = (inv.customer_name || inv.customer_email || '').trim();\n  let name = base ? `${base} (${inv.customer})` : inv.customer;\n  if (name.length > 255) name = `${base.slice(0, 255 - inv.customer.length - 4)}… (${inv.customer})`;\n  customers[inv.customer] ??= { Name: name, ContactNumber: inv.customer, ...(inv.customer_email ? { EmailAddress: inv.customer_email } : {}) };\n\n  invoices[inv.id] = {\n    events: [ev.id],\n    customer: inv.customer,\n    amount: inv.amount_paid / unit,\n    invoice: {\n      Type: 'ACCREC', InvoiceNumber: inv.number ?? inv.id, Reference: inv.id, Status: 'AUTHORISED', CurrencyCode: cur,\n      Date: day(inv.effective_at ?? inv.created), DueDate: day(inv.due_date ?? inv.effective_at ?? inv.created),\n      LineAmountTypes: 'NoTax', Url: inv.hosted_invoice_url ?? undefined,\n      LineItems: posted.map(l => ({ Description: l.description, Quantity: 1, UnitAmount: l.net / unit, AccountCode: s.xero_sales_account })),\n    },\n    payment: {\n      Account: { Code: s.xero_bank_account }, Amount: inv.amount_paid / unit, Reference: inv.id,\n      Date: day(inv.status_transitions?.paid_at ?? inv.created),\n    },\n  };\n}\n\n// contacts linked on earlier runs are known, ask Xero about the rest by customer id\nconst known = {};\nfor (const c of Object.keys(customers)) if (links[c]?.contact) known[c] = links[c].contact;\nconst unknown = Object.keys(customers).filter(c => !known[c]);\nconst where = unknown.map(c => `ContactNumber==\"${c}\"`).join(' OR ');\nreturn [{ json: {\n  ...(unknown.length ? { service: 'xero', method: 'GET', url: `${s.xero_api_base}/Contacts?where=${encodeURIComponent(where)}` } : { skip: true }),\n  plan: { settings: s, outcomes, invoices, customers, known },\n} }];\n"
+      },
+      "position": [
+        440,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "4092fc2e-04a3-53ab-9d76-1155c58062ea",
+      "name": "Xero: find contacts",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        660,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "dafcbdc6-0651-5bfe-8ff6-005737eb4998",
+      "name": "Contacts to create",
+      "parameters": {
+        "jsCode": "// contacts linked before or found in Xero just now. returns Stripe customer id -> Xero ContactID\nconst contactIds = () => {\n  const { known } = $('Plan').first().json.plan;\n  const ids = { ...known };\n  for (const node of ['Xero: find contacts', 'Xero: create contacts']) {\n    if (!$(node).isExecuted) continue;\n    for (const c of $(node).first().json.Contacts ?? []) if (c.ContactNumber && c.StatusAttributeString !== 'ERROR') ids[c.ContactNumber] = c.ContactID;\n  }\n  return ids;\n};\n\nconst { plan } = $('Plan').first().json;\nconst have = contactIds();\nconst missing = Object.values(plan.customers).filter(c => !have[c.ContactNumber]);\nreturn [{ json: missing.length\n  ? { service: 'xero', method: 'PUT', url: `${plan.settings.xero_api_base}/Contacts?summarizeErrors=false`, body: { Contacts: missing } }\n  : { skip: true } }];\n"
+      },
+      "position": [
+        880,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a3e13bf3-d8fd-5461-8a8e-eebc97def1b3",
+      "name": "Xero: create contacts",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        1100,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "e605b315-9d54-5a23-bec6-008f0938592d",
+      "name": "Invoices to look up",
+      "parameters": {
+        "jsCode": "// any invoice still to pay may already be in Xero from an attempt that died halfway, look up by number\nconst { plan } = $('Plan').first().json;\nconst numbers = Object.values(plan.invoices).map(i => encodeURIComponent(i.invoice.InvoiceNumber));\nreturn [{ json: numbers.length\n  ? { service: 'xero', method: 'GET', url: `${plan.settings.xero_api_base}/Invoices?InvoiceNumbers=${numbers.join(',')}` }\n  : { skip: true } }];\n"
+      },
+      "position": [
+        1320,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "69394e21-3a70-5b09-b5bc-4cb08c1a2b7a",
+      "name": "Xero: find invoices",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        1540,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "d4624f26-821b-538f-9e4c-816c747abc9c",
+      "name": "Invoices to create",
+      "parameters": {
+        "jsCode": "// contacts linked before or found in Xero just now. returns Stripe customer id -> Xero ContactID\nconst contactIds = () => {\n  const { known } = $('Plan').first().json.plan;\n  const ids = { ...known };\n  for (const node of ['Xero: find contacts', 'Xero: create contacts']) {\n    if (!$(node).isExecuted) continue;\n    for (const c of $(node).first().json.Contacts ?? []) if (c.ContactNumber && c.StatusAttributeString !== 'ERROR') ids[c.ContactNumber] = c.ContactID;\n  }\n  return ids;\n};\n\n// Xero invoices found or created, by number\nconst xeroInvoices = () => {\n  const byNumber = {};\n  for (const node of ['Xero: find invoices', 'Xero: create invoices']) {\n    if (!$(node).isExecuted) continue;\n    for (const i of $(node).first().json.Invoices ?? []) if (i.StatusAttributeString !== 'ERROR') byNumber[i.InvoiceNumber] = i;\n  }\n  return byNumber;\n};\n\n// create what Xero lacks, for customers that have a contact now. Contact gets only the id, more fields\n// would update the contact\nconst { plan } = $('Plan').first().json;\nconst contacts = contactIds();\nconst found = xeroInvoices();\nconst create = Object.values(plan.invoices)\n  .filter(p => !found[p.invoice.InvoiceNumber] && contacts[p.customer])\n  .map(p => ({ ...p.invoice, Contact: { ContactID: contacts[p.customer] } }));\nreturn [{ json: create.length\n  ? { service: 'xero', method: 'PUT', url: `${plan.settings.xero_api_base}/Invoices?summarizeErrors=false`, body: { Invoices: create } }\n  : { skip: true } }];\n"
+      },
+      "position": [
+        1760,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "ae5b1cc0-7282-511b-8467-387aeb92ebcd",
+      "name": "Xero: create invoices",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        1980,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "357d6ea9-d09c-573c-a42d-a2b5cef53c25",
+      "name": "Payments to record",
+      "parameters": {
+        "jsCode": "// Xero invoices found or created, by number\nconst xeroInvoices = () => {\n  const byNumber = {};\n  for (const node of ['Xero: find invoices', 'Xero: create invoices']) {\n    if (!$(node).isExecuted) continue;\n    for (const i of $(node).first().json.Invoices ?? []) if (i.StatusAttributeString !== 'ERROR') byNumber[i.InvoiceNumber] = i;\n  }\n  return byNumber;\n};\n\n// pay each invoice that still has exactly the Stripe amount due. already paid means an earlier attempt did it\nconst { plan } = $('Plan').first().json;\nconst invoices = xeroInvoices();\nconst pay = [];\nfor (const [stripeId, p] of Object.entries(plan.invoices)) {\n  const x = invoices[p.invoice.InvoiceNumber];\n  if (x && x.Reference === stripeId && x.Status === 'AUTHORISED' && Math.abs(x.AmountDue - p.amount) < 0.0005) {\n    pay.push({ ...p.payment, Invoice: { InvoiceID: x.InvoiceID } });\n  }\n}\nreturn [{ json: pay.length\n  ? { service: 'xero', method: 'PUT', url: `${plan.settings.xero_api_base}/Payments?summarizeErrors=false`, body: { Payments: pay } }\n  : { skip: true } }];\n"
+      },
+      "position": [
+        2200,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "517569c6-3fcc-576e-8a08-fca990e2d4bd",
+      "name": "Xero: record payments",
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "stripe-xero · api call",
+          "mode": "list",
+          "value": "xz3tsYZyYdlomKTa"
+        }
+      },
+      "position": [
+        2420,
+        0
+      ],
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3
+    },
+    {
+      "id": "013154cc-d439-5796-aa2a-ac22e5c62fb2",
+      "name": "Outcome",
+      "parameters": {
+        "jsCode": "const problems = el => (el.ValidationErrors ?? []).map(e => e.Message).join('; ') || 'rejected by Xero';\nconst ok = el => el.StatusAttributeString !== 'ERROR';\n// contacts linked before or found in Xero just now. returns Stripe customer id -> Xero ContactID\nconst contactIds = () => {\n  const { known } = $('Plan').first().json.plan;\n  const ids = { ...known };\n  for (const node of ['Xero: find contacts', 'Xero: create contacts']) {\n    if (!$(node).isExecuted) continue;\n    for (const c of $(node).first().json.Contacts ?? []) if (c.ContactNumber && c.StatusAttributeString !== 'ERROR') ids[c.ContactNumber] = c.ContactID;\n  }\n  return ids;\n};\n// Xero invoices found or created, by number\nconst xeroInvoices = () => {\n  const byNumber = {};\n  for (const node of ['Xero: find invoices', 'Xero: create invoices']) {\n    if (!$(node).isExecuted) continue;\n    for (const i of $(node).first().json.Invoices ?? []) if (i.StatusAttributeString !== 'ERROR') byNumber[i.InvoiceNumber] = i;\n  }\n  return byNumber;\n};\n\n// one outcome per event, plus the Stripe -> Xero links worth keeping\nconst { plan } = $('Plan').first().json;\nconst contacts = contactIds(), invoices = xeroInvoices();\nconst failed = { contact: {}, invoice: {}, payment: {} }, paid = {};\nfor (const c of $('Xero: create contacts').first().json.Contacts ?? []) if (!ok(c)) failed.contact[c.ContactNumber] = problems(c);\nfor (const i of $('Xero: create invoices').first().json.Invoices ?? []) if (!ok(i)) failed.invoice[i.InvoiceNumber] = problems(i);\nfor (const p of $('Xero: record payments').first().json.Payments ?? []) {\n  if (ok(p)) paid[p.Invoice.InvoiceID] = p; else failed.payment[p.Invoice.InvoiceID] = problems(p);\n}\n\nconst links = Object.entries(contacts).filter(([cus]) => !plan.known[cus]).map(([cus, id]) => ({ stripe_id: cus, kind: 'contact', xero_id: id }));\nconst results = [...plan.outcomes];\nfor (const [stripeId, p] of Object.entries(plan.invoices)) {\n  const x = invoices[p.invoice.InvoiceNumber];\n  let error = null;\n  if (!contacts[p.customer]) error = `Xero contact: ${failed.contact[p.customer] ?? 'not found and not created'}`;\n  else if (!x) error = `Xero invoice: ${failed.invoice[p.invoice.InvoiceNumber] ?? 'not found and not created'}`;\n  else if (x.Reference !== stripeId) error = `PERMANENT: Xero invoice ${x.InvoiceNumber} has Reference \"${x.Reference}\", not ${stripeId}; the number is taken`;\n  else if (paid[x.InvoiceID] || x.AmountDue === 0) {\n    links.push({ stripe_id: stripeId, kind: 'invoice', xero_id: x.InvoiceID, amount: x.Total });\n    const paymentId = paid[x.InvoiceID]?.PaymentID ?? x.Payments?.[0]?.PaymentID;\n    if (paymentId) links.push({ stripe_id: stripeId, kind: 'payment', xero_id: paymentId, amount: p.amount });\n  } else if (failed.payment[x.InvoiceID]) error = `Xero payment: ${failed.payment[x.InvoiceID]}`;\n  else error = `PERMANENT: Xero invoice ${x.InvoiceNumber} is ${x.Status} with ${x.AmountDue} due, Stripe paid ${p.amount}`;\n  for (const event_id of p.events) results.push({ event_id, error });\n}\nreturn [{ json: { links, results } }];\n"
+      },
+      "position": [
+        2640,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "credentials": {
+        "postgres": {
+          "name": "Sync DB"
+        }
+      },
+      "id": "aa75752d-920f-55f6-9779-80dc4ebe5b74",
+      "name": "Save links",
+      "parameters": {
+        "operation": "executeQuery",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json.links) ] }}"
+        },
+        "query": "SELECT save_links($1::jsonb) AS saved"
+      },
+      "position": [
+        2860,
+        0
+      ],
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7
+    },
+    {
+      "id": "6823d9c4-c97d-5f36-b719-43484f9be7f9",
+      "name": "Results",
+      "parameters": {
+        "jsCode": "// the processor wants one {event_id, error} per event it handed over\nreturn $('Outcome').first().json.results.map(r => ({ json: r }));\n"
+      },
+      "position": [
+        3080,
+        0
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "id": "a458c9e3-7893-53c2-9dbf-f302f21f2692",
+      "name": "About",
+      "parameters": {
+        "content": "## invoice.paid -> Xero contact, invoice and payment\nA batch of up to 40 events costs at most 5 Xero calls: find contacts, create contacts, find invoices,\ncreate invoices, record payments. Each step looks before it creates, so a batch that failed halfway can simply\nrun again: nothing is created twice.\n\nRejected for good (`PERMANENT:`, dead at once): tax lines, a currency other than the organisation's, invoices\npaid partly from customer balance. $0 invoices and invoices already linked are done without calling Xero.",
+        "height": 240,
+        "width": 720
+      },
+      "position": [
+        180,
+        -380
+      ],
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1
+    }
+  ],
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "tags": [
+    "stripe-xero"
+  ]
+}
