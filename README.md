@@ -154,6 +154,19 @@ Not handled:
 - History older than 30 days is not backfilled, because that is where the Events API ends.
 - `xero_link` remembers what exists in Xero. After resetting a Xero demo company, empty it.
 
+## Commercial support & migration
+
+This sync is built and maintained by [Nightloom Development](https://nightloom-dev.com). We take paid work around it:
+
+- **Setup on your accounts:** your Stripe, your Xero organisation and your n8n, with a check afterwards that Xero matches Stripe.
+- **Mapping changes:** your account codes, tax rates, other currencies, invoices paid from customer balance, more Stripe event types.
+- **Fixes and reconciliation:** dead events, a mismatch between Xero and Stripe, a sync that stopped after an n8n upgrade or a Stripe API version change.
+- **Migration:** moving off another Stripe to Xero integration without posting twice what is already in Xero, and loading history older than 30 days.
+
+The first piece of work is fixed-price, so you can judge it before the rest. After that it's $30/h. We reply within one business day. We don't sell uptime guarantees: the sync runs on your n8n.
+
+Email unwinned@nightloom-dev.com with what you need and where your n8n runs.
+
 ## Files
 
 ```
@@ -167,3 +180,7 @@ tools/replay.py           delivers events like Stripe: signed, repeated, shuffle
 tools/soak.py             the chaos run above
 n8nctl.py                 pull, diff, push, rollback and credentials between n8n instances
 ```
+
+## License
+
+MIT
