@@ -15,6 +15,8 @@ that. Its end state is checked against Stripe, document by document.
 - **Xero's rate limit is respected,** with about 0.15 Xero calls per event, because events are synced in batches.
 - **What cannot be posted correctly is refused,** announced on Telegram and kept for a replay after the fix.
 
+*Developed in a private repository and published here as a snapshot, so the history starts at publication.*
+
 ## Contents
 
 - [Proof](#proof)
